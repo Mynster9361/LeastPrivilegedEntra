@@ -8,6 +8,13 @@ Enumerates every user holding an Entra ID directory role (active or PIM-eligible
 Install-Module -Name 'LeastPrivilegedEntra' -Scope CurrentUser
 ```
 
+## Documentation
+
+Docs can be found on the following site:
+
+https://mynster-it.dk/docs/modules/leastprivilegedentra
+
+
 ## Available Commands
 
 | Command                     | Description                                                                                                                                                                                |
