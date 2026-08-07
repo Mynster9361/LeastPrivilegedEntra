@@ -1,6 +1,6 @@
 ﻿#Requires -Modules EntraAuth
 
-function Get-LPEPrivilegedUsers {
+function Get-LPEPrivilegedUser {
     <#
     .SYNOPSIS
     Returns every user who holds any Microsoft Entra ID directory role, whether actively assigned or PIM-eligible.
@@ -19,7 +19,7 @@ function Get-LPEPrivilegedUsers {
     members resolved via a role-assignable group, so those users come back with both fields blank.
 
     .EXAMPLE
-    Get-LPEPrivilegedUsers
+    Get-LPEPrivilegedUser
 
     Returns one object per privileged user, each with a Roles list of their active/eligible role assignments.
 

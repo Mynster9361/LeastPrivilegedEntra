@@ -24,7 +24,7 @@ function Get-LPELogActivityData {
         The Log Analytics workspace ID (customer ID GUID) containing the AuditLogs table.
     .PARAMETER UserId
         One or more Entra ID user object IDs to restrict the query to (e.g. the Id values returned by
-        Get-LPEPrivilegedUsers). If omitted, activity for every user found in the window is returned.
+        Get-LPEPrivilegedUser). If omitted, activity for every user found in the window is returned.
     .PARAMETER Days
         Number of days of audit log history to query. Default is 90.
     .PARAMETER IncludeFailures

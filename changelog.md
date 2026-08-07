@@ -10,17 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Invoke-LPEScan` reports progress via `Write-Progress` across each stage of the scan (connecting, enumerating privileged users, querying audit logs, analyzing, writing output)
 - `Get-LPELogActivityData` now returns `FailureCount` and `LastAttemptTime` alongside `ActivityCount`/`LastActivityTime`/`FirstActivityTime`, splitting successful occurrences from failed/denied ones instead of merging or excluding them
 - `Get-LPEPermissionAnalysis` now returns a `Suggestion.DeniedAttempts` list - roles a user doesn't hold but repeatedly attempted (and was denied) actions requiring, populated only when `ActivityLog` was collected with `Get-LPELogActivityData -IncludeFailures`
-- Added a Pester test suite (`tests/functions/*.Tests.ps1`) covering `Get-LPEActivityData`, `Get-LPEPrivilegedUsers`, `Get-LPELogActivityData`, `Get-LPEPermissionAnalysis`, and `Invoke-LPEScan`
+- Added a Pester test suite (`tests/functions/*.Tests.ps1`) covering `Get-LPEActivityData`, `Get-LPEPrivilegedUser`, `Get-LPELogActivityData`, `Get-LPEPermissionAnalysis`, and `Invoke-LPEScan`
 
 ### Changed
-- `Get-LPEPrivilegedUsers` now requests `id,displayName,userPrincipalName` via `$select` when expanding role-assignable group membership, and documents that `User.ReadBasic.All` (in addition to `RoleManagement.Read.Directory` and `GroupMember.Read.All`) is required for those fields to actually populate for group-sourced members
+- `Get-LPEPrivilegedUser` now requests `id,displayName,userPrincipalName` via `$select` when expanding role-assignable group membership, and documents that `User.ReadBasic.All` (in addition to `RoleManagement.Read.Directory` and `GroupMember.Read.All`) is required for those fields to actually populate for group-sourced members
 - `Get-LPELogActivityData`'s `-IncludeFailures` switch now means "also include activities that were attempted but never succeeded", rather than merging failed attempts into the success count
 
 ### Removed
-- Removed the standalone top-level scripts (`Get-ActivityData.ps1`, `Get-PrivilegedUsers.ps1`, `Get-LogActivityData.ps1`, `Get-PermissionAnalysis.ps1`) now that their functionality lives in the `LeastPrivilegedEntra` module as `Get-LPEActivityData`, `Get-LPEPrivilegedUsers`, `Get-LPELogActivityData`, and `Get-LPEPermissionAnalysis`
+- Removed the standalone top-level scripts (`Get-ActivityData.ps1`, `Get-PrivilegedUsers.ps1`, `Get-LogActivityData.ps1`, `Get-PermissionAnalysis.ps1`) now that their functionality lives in the `LeastPrivilegedEntra` module as `Get-LPEActivityData`, `Get-LPEPrivilegedUser`, `Get-LPELogActivityData`, and `Get-LPEPermissionAnalysis`
 
 ### Fixed
-- `Get-LPEPrivilegedUsers` no longer fails the entire scan when a role assignment/eligibility record references a role-assignable group that no longer exists (e.g. a deleted group); the assignment is now skipped with a warning naming the role and group instead
+- `Get-LPEPrivilegedUser` no longer fails the entire scan when a role assignment/eligibility record references a role-assignable group that no longer exists (e.g. a deleted group); the assignment is now skipped with a warning naming the role and group instead
 - `Get-LPEPermissionAnalysis` no longer marks a role as `Used`, or suggests adding it via `AddRoles`, based solely on a denied/failed activity attempt
 
 [Unreleased]: https://github.com/Mynster9361/LeastPrivilegedEntra/commits/main
