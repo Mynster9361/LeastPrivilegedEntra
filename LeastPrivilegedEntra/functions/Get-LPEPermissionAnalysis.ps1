@@ -55,6 +55,8 @@
         Shows the full activity-by-activity breakdown behind every role a specific user holds.
     .OUTPUTS
         PSCustomObject
+	.LINK
+		https://mynster-it.dk/docs/modules/leastprivilegedentra/commands/Get-LPEPermissionAnalysis
     #>
 	[CmdletBinding()]
 	[OutputType([PSCustomObject])]

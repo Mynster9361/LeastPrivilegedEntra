@@ -45,6 +45,8 @@ function Invoke-LPEScan {
         Runs the scan over a 30-day window and writes the results to a JSON file.
     .OUTPUTS
         PSCustomObject
+	.LINK
+		https://mynster-it.dk/docs/modules/leastprivilegedentra/commands/Invoke-LPEScan
     #>
 	[CmdletBinding()]
 	[OutputType([PSCustomObject])]

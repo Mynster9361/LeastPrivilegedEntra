@@ -26,6 +26,8 @@
         Returns every activity, across all categories, that is flagged as relevant.
     .OUTPUTS
         PSCustomObject
+	.LINK
+		https://mynster-it.dk/docs/modules/leastprivilegedentra/commands/Get-LPEActivityData
     #>
 	[CmdletBinding()]
 	[OutputType([PSCustomObject])]

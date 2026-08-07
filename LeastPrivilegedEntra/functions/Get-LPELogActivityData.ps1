@@ -44,6 +44,8 @@ function Get-LPELogActivityData {
         Finds the last time a specific user performed an activity that Get-LPEActivityData maps to a least-privileged permission.
     .OUTPUTS
         PSCustomObject
+	.LINK
+		https://mynster-it.dk/docs/modules/leastprivilegedentra/commands/Get-LPELogActivityData
     #>
 	[CmdletBinding()]
 	[OutputType([PSCustomObject])]

@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Links to documentation site
+- Credits on Get-LPEPrivilegedUser
+
+## [1.0.0] - 2026-08-07
+
+### Added
 - Added `Invoke-LPEScan` - the main entry-point cmdlet wrapping the full workflow: connect to the tenant, enumerate privileged users, pull their audit log activity, and produce the per-user role usage analysis. Supports `-SkipConnect` to reuse an existing EntraAuth connection and `-OutFile` to export the result as JSON
 - `Invoke-LPEScan` reports progress via `Write-Progress` across each stage of the scan (connecting, enumerating privileged users, querying audit logs, analyzing, writing output)
 - `Get-LPELogActivityData` now returns `FailureCount` and `LastAttemptTime` alongside `ActivityCount`/`LastActivityTime`/`FirstActivityTime`, splitting successful occurrences from failed/denied ones instead of merging or excluding them
