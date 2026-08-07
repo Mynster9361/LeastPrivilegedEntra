@@ -1,6 +1,6 @@
-#Requires -Modules EntraAuth
+﻿#Requires -Modules EntraAuth
 
-function Get-PrivilegedUsers {
+function Get-LPEPrivilegedUsers {
     <#
     .SYNOPSIS
     Returns every user who holds any Microsoft Entra ID directory role, whether actively assigned or PIM-eligible.
@@ -14,10 +14,12 @@ function Get-PrivilegedUsers {
     Falls back to the legacy roleAssignments endpoint for tenants without Entra ID P2/Governance (PIM).
 
     Requires an existing EntraAuth connection (Connect-EntraService -Service Graph) with at least
-    RoleManagement.Read.Directory and GroupMember.Read.All.
+    RoleManagement.Read.Directory, GroupMember.Read.All, and User.ReadBasic.All. Without User.ReadBasic.All,
+    GroupMember.Read.All is enough to enumerate group membership but not to read displayName/userPrincipalName for
+    members resolved via a role-assignable group, so those users come back with both fields blank.
 
     .EXAMPLE
-    Get-PrivilegedUsers
+    Get-LPEPrivilegedUsers
 
     Returns one object per privileged user, each with a Roles list of their active/eligible role assignments.
 
@@ -76,7 +78,22 @@ function Get-PrivilegedUsers {
             if (-not $principal) { continue }
 
             if ($principal.'@odata.type' -eq '#microsoft.graph.group') {
-                $members = Invoke-EntraRequest -Path "groups/$($principal.id)/members"
+                # /members is a heterogeneous directoryObject collection (users, groups, service principals,
+                # devices); without $select it returns only id/@odata.type per member. The microsoft.graph.user
+                # cast segment (/members/microsoft.graph.user) would be the cleaner fix but 404s against
+                # role-assignable groups in this tenant, so $select on the untyped endpoint is used instead.
+                # Note: $select only returns displayName/userPrincipalName here if the connection also has
+                # User.ReadBasic.All - GroupMember.Read.All alone is enough to list member ids but not read them.
+                #
+                # Role assignment/eligibility records can outlive the group they point to (e.g. a role-assignable
+                # group gets deleted but the schedule instance referencing it lingers), so a 404 here is expected
+                # tenant data, not a bug - skip that assignment instead of failing the whole scan.
+                try {
+                    $members = Invoke-EntraRequest -Path "groups/$($principal.id)/members" -Query @{ '$select' = 'id,displayName,userPrincipalName' } -ErrorAction Stop
+                } catch {
+                    Write-Warning "Skipping role '$($role.displayName)' assignment via group '$($principal.displayName)' ($($principal.id)): group could not be resolved (it may have been deleted). $($_.Exception.Message)"
+                    continue
+                }
                 $viaGroup = $principal.displayName
             } else {
                 $members = @($principal)

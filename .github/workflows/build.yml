@@ -1,0 +1,33 @@
+﻿on:
+    push:
+        branches:
+            - master
+            - main
+
+jobs:
+    build:
+        runs-on: windows-latest
+        permissions:
+            contents: write
+
+        steps:
+            - uses: actions/checkout@v6
+            - name: Install Prerequisites
+              run: .\build\psf-prerequisites.ps1
+              shell: pwsh
+            - name: Run Pester tests
+              run: .\build\vsts-validate.ps1
+              shell: pwsh
+            - name: Build PowerShell module
+              run: .\build\psf-build.ps1
+              shell: pwsh
+            - name: GitHub Release
+              run: .\build\vsts-release.ps1
+              shell: pwsh
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            - name: Publish on gallery
+              run: .\build\psf-publish.ps1 -ApiKey $env:APIKEY
+              shell: pwsh
+              env:
+                  APIKEY: ${{ secrets.ApiKey }}
