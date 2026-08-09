@@ -94,13 +94,21 @@ Describe "Get-LPEPermissionAnalysis" {
 
     Context "A successful activity implying an unheld, narrower role" {
 
-        It "Suggests adding that role" {
+        It "Suggests adding that role, with the evidence attached" {
             $user = New-TestUser -RoleName 'Global Reader'
             $log = New-TestActivityLog -Category 'GroupManagement' -DisplayName 'Add member to group' -ActivityCount 3
 
             $result = Get-LPEPermissionAnalysis -PrivilegedUser $user -ActivityLog $log
 
-            $result.Suggestion.AddRoles | Should -Contain 'Groups Administrator'
+            $result.Suggestion.AddRoles.RoleName | Should -Contain 'Groups Administrator'
+
+            $suggestion = $result.Suggestion.AddRoles | Where-Object RoleName -EQ 'Groups Administrator'
+            $suggestion.Activities | Should -HaveCount 1
+            $suggestion.Activities[0].Category | Should -Be 'GroupManagement'
+            $suggestion.Activities[0].DisplayName | Should -Be 'Add member to group'
+            $suggestion.Activities[0].LeastPrivilegedMSGraph | Should -Be 'GroupMember.ReadWrite.All'
+            $suggestion.Activities[0].ActivityCount | Should -Be 3
+            $suggestion.Activities[0].LastActivityTime | Should -Not -BeNullOrEmpty
         }
     }
 
@@ -122,16 +130,23 @@ Describe "Get-LPEPermissionAnalysis" {
 
             $result = Get-LPEPermissionAnalysis -PrivilegedUser $user -ActivityLog $log
 
-            $result.Suggestion.AddRoles | Should -Not -Contain 'User Administrator'
+            $result.Suggestion.AddRoles.RoleName | Should -Not -Contain 'User Administrator'
         }
 
-        It "Is surfaced via DeniedAttempts instead" {
+        It "Is surfaced via DeniedAttempts instead, with the denied evidence attached" {
             $user = New-TestUser -RoleName 'Global Reader'
             $log = New-TestActivityLog -Category 'UserManagement' -DisplayName 'Update user' -ActivityCount 0 -FailureCount 2
 
             $result = Get-LPEPermissionAnalysis -PrivilegedUser $user -ActivityLog $log
 
-            $result.Suggestion.DeniedAttempts | Should -Contain 'User Administrator'
+            $result.Suggestion.DeniedAttempts.RoleName | Should -Contain 'User Administrator'
+
+            $suggestion = $result.Suggestion.DeniedAttempts | Where-Object RoleName -EQ 'User Administrator'
+            $suggestion.Activities | Should -HaveCount 1
+            $suggestion.Activities[0].Category | Should -Be 'UserManagement'
+            $suggestion.Activities[0].DisplayName | Should -Be 'Update user'
+            $suggestion.Activities[0].FailureCount | Should -Be 2
+            $suggestion.Activities[0].LastAttemptTime | Should -Not -BeNullOrEmpty
         }
     }
 
@@ -151,10 +166,40 @@ Describe "Get-LPEPermissionAnalysis" {
 
             $result = Get-LPEPermissionAnalysis -PrivilegedUser $user -ActivityLog $log
 
-            $result.Suggestion.AddRoles | Should -Contain 'Groups Administrator'
-            $result.Suggestion.AddRoles | Should -Not -Contain 'User Administrator'
-            $result.Suggestion.DeniedAttempts | Should -Contain 'User Administrator'
-            $result.Suggestion.DeniedAttempts | Should -Not -Contain 'Groups Administrator'
+            $result.Suggestion.AddRoles.RoleName | Should -Contain 'Groups Administrator'
+            $result.Suggestion.AddRoles.RoleName | Should -Not -Contain 'User Administrator'
+            $result.Suggestion.DeniedAttempts.RoleName | Should -Contain 'User Administrator'
+            $result.Suggestion.DeniedAttempts.RoleName | Should -Not -Contain 'Groups Administrator'
+        }
+    }
+
+    Context "A single unheld role with both successful and denied evidence" {
+
+        It "Only appears in AddRoles, not DeniedAttempts, once it has any successful evidence" {
+            Mock -ModuleName LeastPrivilegedEntra Get-LPEActivityData {
+                [PSCustomObject]@{ Category = 'UserManagement'; DisplayName = 'Update user'; LeastPrivilegeRBAC = 'User Administrator'; LeastPrivilegedMSGraph = 'User.ReadWrite.All'; Relevant = $true }
+                [PSCustomObject]@{ Category = 'UserManagement'; DisplayName = 'Reset password'; LeastPrivilegeRBAC = 'User Administrator'; LeastPrivilegedMSGraph = 'User.ReadWrite.All'; Relevant = $true }
+            }
+
+            $user = New-TestUser -RoleName 'Global Reader'
+            $log = [PSCustomObject]@{
+                Id                = 'user-1'
+                DisplayName       = 'Test User'
+                UserPrincipalName = 'testuser@contoso.com'
+                Activities        = @(
+                    [PSCustomObject]@{ Category = 'UserManagement'; DisplayName = 'Update user'; LastActivityTime = (Get-Date); FirstActivityTime = (Get-Date); LastAttemptTime = (Get-Date); ActivityCount = 1; FailureCount = 0 }
+                    [PSCustomObject]@{ Category = 'UserManagement'; DisplayName = 'Reset password'; LastActivityTime = $null; FirstActivityTime = $null; LastAttemptTime = (Get-Date); ActivityCount = 0; FailureCount = 4 }
+                )
+            }
+
+            $result = Get-LPEPermissionAnalysis -PrivilegedUser $user -ActivityLog $log
+
+            $result.Suggestion.AddRoles.RoleName | Should -Contain 'User Administrator'
+            $result.Suggestion.DeniedAttempts.RoleName | Should -Not -Contain 'User Administrator'
+
+            $suggestion = $result.Suggestion.AddRoles | Where-Object RoleName -EQ 'User Administrator'
+            $suggestion.Activities | Should -HaveCount 1
+            $suggestion.Activities[0].DisplayName | Should -Be 'Update user'
         }
     }
 }

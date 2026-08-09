@@ -1,0 +1,856 @@
+import { UserAnalysis } from './types';
+
+// Synthetic data for local development only (`npm run dev`) - never real tenant data.
+// Role names, audit categories/activities, and Graph permission strings below are drawn from Entra ID's
+// built-in RBAC roles and Microsoft Graph's public audit taxonomy - generic platform vocabulary, not
+// anything tenant-specific. Display names, UPNs, and GUIDs are all made up.
+const sampleData: UserAnalysis[] = [
+	{
+		Id: '11111111-1111-1111-1111-111111111111',
+		DisplayName: 'Alice Admin',
+		UserPrincipalName: 'alice.admin@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Global Administrator',
+				RoleId: '62e90394-69f5-4237-9190-012177145e10',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-08-01T09:15:00Z',
+				DaysSinceLastUse: 8,
+				ActivityCount: 12,
+				RelatedActivities: [
+					{
+						Category: 'UserManagement',
+						DisplayName: 'Update user',
+						LeastPrivilegedMSGraph: 'User.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-08-01T09:15:00Z',
+						ActivityCount: 12,
+						FailureCount: 0,
+					},
+				],
+			},
+		],
+		Suggestion: { RemoveRoles: [], KeepRoles: ['Global Administrator'], AddRoles: [], DeniedAttempts: [] },
+	},
+	{
+		Id: '22222222-2222-2222-2222-222222222222',
+		DisplayName: 'Bob Stale',
+		UserPrincipalName: 'bob.stale@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Global Administrator',
+				RoleId: '62e90394-69f5-4237-9190-012177145e10',
+				AssignmentType: 'Active',
+				ViaGroup: 'Global Administrators',
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [
+					{
+						Category: 'UserManagement',
+						DisplayName: 'Update user',
+						LeastPrivilegedMSGraph: 'User.ReadWrite.All',
+						Used: false,
+						LastActivityTime: null,
+						ActivityCount: 0,
+						FailureCount: 0,
+					},
+				],
+			},
+			{
+				RoleName: 'Global Reader',
+				RoleId: 'f2ef992c-3afb-46b9-b7cf-a126ee74c451',
+				AssignmentType: 'Eligible',
+				ViaGroup: null,
+				Status: 'NoMappedActivity',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: { RemoveRoles: ['Global Administrator'], KeepRoles: ['Global Reader'], AddRoles: [], DeniedAttempts: [] },
+	},
+	{
+		Id: '33333333-3333-3333-3333-333333333333',
+		DisplayName: 'Carol Narrow',
+		UserPrincipalName: 'carol.narrow@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Global Administrator',
+				RoleId: '62e90394-69f5-4237-9190-012177145e10',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: ['Global Administrator'],
+			KeepRoles: [],
+			AddRoles: [
+				{
+					RoleName: 'Groups Administrator',
+					Activities: [
+						{
+							Category: 'GroupManagement',
+							DisplayName: 'Add member to group',
+							LeastPrivilegedMSGraph: 'GroupMember.ReadWrite.All',
+							ActivityCount: 5,
+							LastActivityTime: '2026-08-04T10:20:00Z',
+						},
+					],
+				},
+			],
+			DeniedAttempts: [],
+		},
+	},
+	{
+		Id: '44444444-4444-4444-4444-444444444444',
+		DisplayName: 'Dave Denied',
+		UserPrincipalName: 'dave.denied@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Global Reader',
+				RoleId: 'f2ef992c-3afb-46b9-b7cf-a126ee74c451',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NoMappedActivity',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: [],
+			KeepRoles: ['Global Reader'],
+			AddRoles: [],
+			DeniedAttempts: [
+				{
+					RoleName: 'User Administrator',
+					Activities: [
+						{
+							Category: 'UserManagement',
+							DisplayName: 'Reset password',
+							LeastPrivilegedMSGraph: 'User.ReadWrite.All',
+							FailureCount: 3,
+							LastAttemptTime: '2026-08-06T15:40:00Z',
+						},
+					],
+				},
+			],
+		},
+	},
+	{
+		Id: '55555555-5555-5555-5555-555555555555',
+		DisplayName: 'Erin Everything',
+		UserPrincipalName: 'erin.everything@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Privileged Role Administrator',
+				RoleId: 'e8611ab8-c189-46e8-94e1-60213ab1f814',
+				AssignmentType: 'Eligible',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-07-20T14:03:00Z',
+				DaysSinceLastUse: 20,
+				ActivityCount: 3,
+				RelatedActivities: [
+					{
+						Category: 'RoleManagement',
+						DisplayName: 'Add member to role',
+						LeastPrivilegedMSGraph: 'RoleManagement.ReadWrite.Directory',
+						Used: true,
+						LastActivityTime: '2026-07-20T14:03:00Z',
+						ActivityCount: 2,
+						FailureCount: 0,
+					},
+					{
+						Category: 'RoleManagement',
+						DisplayName: 'Remove member from role',
+						LeastPrivilegedMSGraph: 'RoleManagement.ReadWrite.Directory',
+						Used: true,
+						LastActivityTime: '2026-07-18T11:47:00Z',
+						ActivityCount: 1,
+						FailureCount: 0,
+					},
+				],
+			},
+			{
+				RoleName: 'Exchange Administrator',
+				RoleId: '29232cdf-9323-42fd-ade2-1d097af3e4de',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: ['Exchange Administrator'],
+			KeepRoles: ['Privileged Role Administrator'],
+			AddRoles: [
+				{
+					RoleName: 'User Administrator',
+					Activities: [
+						{
+							Category: 'UserManagement',
+							DisplayName: 'Update user',
+							LeastPrivilegedMSGraph: 'User.ReadWrite.All',
+							ActivityCount: 4,
+							LastActivityTime: '2026-07-19T09:30:00Z',
+						},
+					],
+				},
+			],
+			DeniedAttempts: [
+				{
+					RoleName: 'Application Administrator',
+					Activities: [
+						{
+							Category: 'ApplicationManagement',
+							DisplayName: 'Add application',
+							LeastPrivilegedMSGraph: 'Application.ReadWrite.All',
+							FailureCount: 2,
+							LastAttemptTime: '2026-07-21T16:05:00Z',
+						},
+					],
+				},
+			],
+		},
+	},
+	{
+		// Modeled on a real-world pattern: an app-registration-heavy environment where Application
+		// Administrator sees very high genuine usage - a role that's clearly earning its keep.
+		Id: '66666666-6666-6666-6666-666666666666',
+		DisplayName: 'Frank AppOwner',
+		UserPrincipalName: 'frank.appowner@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Application Administrator',
+				RoleId: '9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-08-05T16:42:00Z',
+				DaysSinceLastUse: 4,
+				ActivityCount: 704,
+				RelatedActivities: [
+					{
+						Category: 'ApplicationManagement',
+						DisplayName: 'Add app role assignment to service principal',
+						LeastPrivilegedMSGraph: 'AppRoleAssignment.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-08-05T16:42:00Z',
+						ActivityCount: 229,
+						FailureCount: 0,
+					},
+					{
+						Category: 'ApplicationManagement',
+						DisplayName: 'Consent to application',
+						LeastPrivilegedMSGraph: 'DelegatedPermissionGrant.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-08-05T09:03:00Z',
+						ActivityCount: 145,
+						FailureCount: 0,
+					},
+					{
+						Category: 'ApplicationManagement',
+						DisplayName: 'Add delegated permission grant',
+						LeastPrivilegedMSGraph: 'DelegatedPermissionGrant.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-08-04T13:20:00Z',
+						ActivityCount: 97,
+						FailureCount: 1,
+					},
+					{
+						Category: 'ApplicationManagement',
+						DisplayName: 'Remove service principal',
+						LeastPrivilegedMSGraph: 'Application.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-08-03T10:11:00Z',
+						ActivityCount: 76,
+						FailureCount: 0,
+					},
+					{
+						Category: 'ApplicationManagement',
+						DisplayName: 'Add service principal',
+						LeastPrivilegedMSGraph: 'Application.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-08-02T08:55:00Z',
+						ActivityCount: 74,
+						FailureCount: 0,
+					},
+					{
+						Category: 'ApplicationManagement',
+						DisplayName: 'Update service principal',
+						LeastPrivilegedMSGraph: 'Application.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-07-30T15:37:00Z',
+						ActivityCount: 18,
+						FailureCount: 0,
+					},
+					{
+						Category: 'ApplicationManagement',
+						DisplayName: 'Set verified publisher',
+						LeastPrivilegedMSGraph: 'Application.ReadWrite.All',
+						Used: false,
+						LastActivityTime: null,
+						ActivityCount: 0,
+						FailureCount: 0,
+					},
+				],
+			},
+		],
+		Suggestion: { RemoveRoles: [], KeepRoles: ['Application Administrator'], AddRoles: [], DeniedAttempts: [] },
+	},
+	{
+		// A break-glass-style super-admin account: lots of roles, most unused - the kind of account this
+		// report exists to flag for review.
+		Id: '77777777-7777-7777-7777-777777777777',
+		DisplayName: 'Grace SuperAdmin',
+		UserPrincipalName: 'grace.superadmin@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Global Administrator',
+				RoleId: '62e90394-69f5-4237-9190-012177145e10',
+				AssignmentType: 'Eligible',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-06-17T10:26:00Z',
+				DaysSinceLastUse: 53,
+				ActivityCount: 5,
+				RelatedActivities: [
+					{
+						Category: 'DirectoryManagement',
+						DisplayName: 'Update company settings',
+						LeastPrivilegedMSGraph: 'Organization.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-06-17T10:26:00Z',
+						ActivityCount: 1,
+						FailureCount: 0,
+					},
+					{
+						Category: 'AuthorizationPolicy',
+						DisplayName: 'Update authorization policy',
+						LeastPrivilegedMSGraph: 'Policy.ReadWrite.Authorization',
+						Used: true,
+						LastActivityTime: '2026-06-10T08:12:00Z',
+						ActivityCount: 2,
+						FailureCount: 0,
+					},
+					{
+						Category: 'PublicKeyInfrastructure',
+						DisplayName: 'Update PublicKeyInfrastructure',
+						LeastPrivilegedMSGraph: 'Directory.ReadWrite.All',
+						Used: false,
+						LastActivityTime: null,
+						ActivityCount: 0,
+						FailureCount: 0,
+					},
+				],
+			},
+			{
+				RoleName: 'User Administrator',
+				RoleId: 'fe930be7-5e62-47db-91af-98c3a49a38b1',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-06-05T21:10:00Z',
+				DaysSinceLastUse: 65,
+				ActivityCount: 1,
+				RelatedActivities: [
+					{
+						Category: 'UserManagement',
+						DisplayName: 'Update user',
+						LeastPrivilegedMSGraph: 'User.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-06-05T21:10:00Z',
+						ActivityCount: 1,
+						FailureCount: 0,
+					},
+					{
+						Category: 'UserManagement',
+						DisplayName: 'Reset password',
+						LeastPrivilegedMSGraph: 'User.ReadWrite.All',
+						Used: false,
+						LastActivityTime: null,
+						ActivityCount: 0,
+						FailureCount: 0,
+					},
+				],
+			},
+			{
+				RoleName: 'Directory Writers',
+				RoleId: '9360feb5-f418-4baa-8175-e2a00bac4301',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NoMappedActivity',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+			{
+				RoleName: 'Exchange Administrator',
+				RoleId: '29232cdf-9323-42fd-ade2-1d097af3e4de',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NoMappedActivity',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+			{
+				// SharePoint site actions aren't captured in the Entra directory audit log this module reads,
+				// so this role can never be evaluated from activity alone - hence NoMappedActivity, not a
+				// removal candidate.
+				RoleName: 'SharePoint Administrator',
+				RoleId: 'f28a1f50-f6e7-4571-818b-6a12f2af6b6c',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NoMappedActivity',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: [],
+			KeepRoles: ['Global Administrator', 'User Administrator', 'Directory Writers', 'Exchange Administrator', 'SharePoint Administrator'],
+			AddRoles: [],
+			DeniedAttempts: [],
+		},
+	},
+	{
+		// Conditional Access Administrator: a narrowly-scoped, actively-used role - the kind of clean,
+		// well-justified assignment the report should surface without any suggestions attached.
+		Id: '88888888-8888-8888-8888-888888888888',
+		DisplayName: 'Henry Conditional',
+		UserPrincipalName: 'henry.conditional@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Conditional Access Administrator',
+				RoleId: 'b1be1c3e-b65d-4f19-8427-f6fa0d97feb9',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-08-06T11:30:00Z',
+				DaysSinceLastUse: 3,
+				ActivityCount: 9,
+				RelatedActivities: [
+					{
+						Category: 'Policy',
+						DisplayName: 'Add Conditional Access policy',
+						LeastPrivilegedMSGraph: 'Policy.ReadWrite.ConditionalAccess',
+						Used: true,
+						LastActivityTime: '2026-08-06T11:30:00Z',
+						ActivityCount: 3,
+						FailureCount: 0,
+					},
+					{
+						Category: 'Policy',
+						DisplayName: 'Update Conditional Access policy',
+						LeastPrivilegedMSGraph: 'Policy.ReadWrite.ConditionalAccess',
+						Used: true,
+						LastActivityTime: '2026-08-05T14:12:00Z',
+						ActivityCount: 6,
+						FailureCount: 0,
+					},
+					{
+						Category: 'Policy',
+						DisplayName: 'Delete Conditional Access policy',
+						LeastPrivilegedMSGraph: 'Policy.ReadWrite.ConditionalAccess',
+						Used: false,
+						LastActivityTime: null,
+						ActivityCount: 0,
+						FailureCount: 0,
+					},
+				],
+			},
+		],
+		Suggestion: { RemoveRoles: [], KeepRoles: ['Conditional Access Administrator'], AddRoles: [], DeniedAttempts: [] },
+	},
+	{
+		// Identity Governance Administrator, held Eligible and genuinely activated to manage access packages -
+		// pairs with Erin Everything's AddRoles suggestion above to show the same role both suggested and in use.
+		Id: '99999999-9999-9999-9999-999999999999',
+		DisplayName: 'Ivy Governance',
+		UserPrincipalName: 'ivy.governance@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Identity Governance Administrator',
+				RoleId: '45d8d3c5-c802-45c6-b32a-1d70b5e1e86e',
+				AssignmentType: 'Eligible',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-08-02T13:05:00Z',
+				DaysSinceLastUse: 7,
+				ActivityCount: 4,
+				RelatedActivities: [
+					{
+						Category: 'EntitlementManagement',
+						DisplayName: 'Administrator directly assigns user to access package',
+						LeastPrivilegedMSGraph: 'EntitlementManagement.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-08-02T13:05:00Z',
+						ActivityCount: 3,
+						FailureCount: 0,
+					},
+					{
+						Category: 'EntitlementManagement',
+						DisplayName: 'Add Entitlement Management role assignment',
+						LeastPrivilegedMSGraph: 'EntitlementManagement.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-07-29T09:40:00Z',
+						ActivityCount: 1,
+						FailureCount: 0,
+					},
+				],
+			},
+			{
+				RoleName: 'Global Reader',
+				RoleId: 'f2ef992c-3afb-46b9-b7cf-a126ee74c451',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NoMappedActivity',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: [],
+			KeepRoles: ['Identity Governance Administrator', 'Global Reader'],
+			AddRoles: [],
+			DeniedAttempts: [],
+		},
+	},
+	{
+		// Intune/device management: a role that partially earns its keep - one config action used, another
+		// never touched.
+		Id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+		DisplayName: 'Jack Intune',
+		UserPrincipalName: 'jack.intune@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Microsoft Intune Service Administrator',
+				RoleId: '3a2c62db-5318-420d-8d74-23affee5d9d5',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-07-28T10:00:00Z',
+				DaysSinceLastUse: 12,
+				ActivityCount: 6,
+				RelatedActivities: [
+					{
+						Category: 'DeviceManagement',
+						DisplayName: 'Add device management configuration',
+						LeastPrivilegedMSGraph: 'DeviceManagementConfiguration.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-07-28T10:00:00Z',
+						ActivityCount: 4,
+						FailureCount: 0,
+					},
+					{
+						Category: 'DeviceManagement',
+						DisplayName: 'Update device management configuration',
+						LeastPrivilegedMSGraph: 'DeviceManagementConfiguration.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-07-22T16:18:00Z',
+						ActivityCount: 2,
+						FailureCount: 0,
+					},
+					{
+						Category: 'DeviceManagement',
+						DisplayName: 'Delete device management configuration',
+						LeastPrivilegedMSGraph: 'DeviceManagementConfiguration.ReadWrite.All',
+						Used: false,
+						LastActivityTime: null,
+						ActivityCount: 0,
+						FailureCount: 0,
+					},
+				],
+			},
+		],
+		Suggestion: { RemoveRoles: [], KeepRoles: ['Microsoft Intune Service Administrator'], AddRoles: [], DeniedAttempts: [] },
+	},
+	{
+		// Security Administrator whose real work spans two very different topics (Identity Protection risk
+		// remediation and BitLocker key management), plus an Eligible role that was never activated - the
+		// multi-category-usage case alongside a straightforward removal candidate.
+		Id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+		DisplayName: 'Jake SecOps',
+		UserPrincipalName: 'jake.secops@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Security Administrator',
+				RoleId: '194ae4cb-b126-40b2-bd5b-6091b380977d',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'Used',
+				LastUsed: '2026-08-07T08:45:00Z',
+				DaysSinceLastUse: 2,
+				ActivityCount: 5,
+				RelatedActivities: [
+					{
+						Category: 'IdentityProtection',
+						DisplayName: 'Remediate user',
+						LeastPrivilegedMSGraph: 'IdentityRiskyUser.ReadWrite.All',
+						Used: true,
+						LastActivityTime: '2026-08-07T08:45:00Z',
+						ActivityCount: 3,
+						FailureCount: 0,
+					},
+					{
+						Category: 'IdentityProtection',
+						DisplayName: 'Update IdentityProtectionPolicy',
+						LeastPrivilegedMSGraph: 'Policy.ReadWrite.IdentityProtection',
+						Used: false,
+						LastActivityTime: null,
+						ActivityCount: 0,
+						FailureCount: 0,
+					},
+					{
+						Category: 'KeyManagement',
+						DisplayName: 'Delete BitLocker key',
+						LeastPrivilegedMSGraph: 'BitlockerKey.ReadBasic.All',
+						Used: true,
+						LastActivityTime: '2026-08-01T19:22:00Z',
+						ActivityCount: 2,
+						FailureCount: 0,
+					},
+				],
+			},
+			{
+				RoleName: 'Groups Administrator',
+				RoleId: 'fdd7a751-b60b-444a-984c-02652fe8fa1c',
+				AssignmentType: 'Eligible',
+				ViaGroup: null,
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [
+					{
+						Category: 'GroupManagement',
+						DisplayName: 'Add member to group',
+						LeastPrivilegedMSGraph: 'GroupMember.ReadWrite.All',
+						Used: false,
+						LastActivityTime: null,
+						ActivityCount: 0,
+						FailureCount: 0,
+					},
+				],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: ['Groups Administrator'],
+			KeepRoles: ['Security Administrator'],
+			AddRoles: [],
+			DeniedAttempts: [],
+		},
+	},
+	{
+		// Textbook right-sizing: holds Global Administrator but never touched anything that required it -
+		// every actual action they performed only ever needed User Administrator.
+		Id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+		DisplayName: 'Liam Overscoped',
+		UserPrincipalName: 'liam.overscoped@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Global Administrator',
+				RoleId: '62e90394-69f5-4237-9190-012177145e10',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: ['Global Administrator'],
+			KeepRoles: [],
+			AddRoles: [
+				{
+					RoleName: 'User Administrator',
+					Activities: [
+						{
+							Category: 'UserManagement',
+							DisplayName: 'Update user',
+							LeastPrivilegedMSGraph: 'User.ReadWrite.All',
+							ActivityCount: 14,
+							LastActivityTime: '2026-08-07T13:52:00Z',
+						},
+						{
+							Category: 'UserManagement',
+							DisplayName: 'Reset password',
+							LeastPrivilegedMSGraph: 'User.ReadWrite.All',
+							ActivityCount: 6,
+							LastActivityTime: '2026-08-05T11:04:00Z',
+						},
+					],
+				},
+			],
+			DeniedAttempts: [],
+		},
+	},
+	{
+		// Same story, different pair: Privileged Role Administrator held and unused, but their real work was
+		// all application/service-principal management.
+		Id: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+		DisplayName: 'Maya Escalated',
+		UserPrincipalName: 'maya.escalated@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Privileged Role Administrator',
+				RoleId: 'e8611ab8-c189-46e8-94e1-60213ab1f814',
+				AssignmentType: 'Active',
+				ViaGroup: null,
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: ['Privileged Role Administrator'],
+			KeepRoles: [],
+			AddRoles: [
+				{
+					RoleName: 'Application Administrator',
+					Activities: [
+						{
+							Category: 'ApplicationManagement',
+							DisplayName: 'Add service principal',
+							LeastPrivilegedMSGraph: 'Application.ReadWrite.All',
+							ActivityCount: 9,
+							LastActivityTime: '2026-08-06T09:17:00Z',
+						},
+						{
+							Category: 'ApplicationManagement',
+							DisplayName: 'Consent to application',
+							LeastPrivilegedMSGraph: 'DelegatedPermissionGrant.ReadWrite.All',
+							ActivityCount: 3,
+							LastActivityTime: '2026-08-01T14:30:00Z',
+						},
+					],
+				},
+			],
+			DeniedAttempts: [],
+		},
+	},
+	{
+		// A role that was never even activated during the window despite being Eligible the whole time - their
+		// only real activity was resetting MFA methods for other users.
+		Id: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+		DisplayName: 'Noah Broadgrant',
+		UserPrincipalName: 'noah.broadgrant@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Global Administrator',
+				RoleId: '62e90394-69f5-4237-9190-012177145e10',
+				AssignmentType: 'Eligible',
+				ViaGroup: null,
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: ['Global Administrator'],
+			KeepRoles: [],
+			AddRoles: [
+				{
+					RoleName: 'Authentication Administrator',
+					Activities: [
+						{
+							Category: 'UserManagement',
+							DisplayName: 'Enable Strong Authentication',
+							LeastPrivilegedMSGraph: 'UserAuthenticationMethod.ReadWrite.All',
+							ActivityCount: 7,
+							LastActivityTime: '2026-08-03T08:26:00Z',
+						},
+					],
+				},
+			],
+			DeniedAttempts: [],
+		},
+	},
+	{
+		// The compound case: TWO broad, unused roles collapsing into a single narrower suggestion - shows the
+		// report can consolidate multiple removals behind one right-sized recommendation.
+		Id: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+		DisplayName: 'Olivia Twofold',
+		UserPrincipalName: 'olivia.twofold@contoso.com',
+		Roles: [
+			{
+				RoleName: 'Global Administrator',
+				RoleId: '62e90394-69f5-4237-9190-012177145e10',
+				AssignmentType: 'Active',
+				ViaGroup: 'Global Administrators',
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+			{
+				RoleName: 'Privileged Role Administrator',
+				RoleId: 'e8611ab8-c189-46e8-94e1-60213ab1f814',
+				AssignmentType: 'Eligible',
+				ViaGroup: null,
+				Status: 'NotUsedInWindow',
+				LastUsed: null,
+				DaysSinceLastUse: null,
+				ActivityCount: 0,
+				RelatedActivities: [],
+			},
+		],
+		Suggestion: {
+			RemoveRoles: ['Global Administrator', 'Privileged Role Administrator'],
+			KeepRoles: [],
+			AddRoles: [
+				{
+					RoleName: 'Groups Administrator',
+					Activities: [
+						{
+							Category: 'GroupManagement',
+							DisplayName: 'Add member to group',
+							LeastPrivilegedMSGraph: 'GroupMember.ReadWrite.All',
+							ActivityCount: 11,
+							LastActivityTime: '2026-08-07T17:08:00Z',
+						},
+						{
+							Category: 'GroupManagement',
+							DisplayName: 'Remove member from group',
+							LeastPrivilegedMSGraph: 'GroupMember.ReadWrite.All',
+							ActivityCount: 4,
+							LastActivityTime: '2026-08-02T12:44:00Z',
+						},
+					],
+				},
+			],
+			DeniedAttempts: [],
+		},
+	},
+];
+
+export default sampleData;
