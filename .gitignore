@@ -1,3 +1,6 @@
 ﻿publish
 TestResults
 JustForTesting.ps1
+PrivilegedUsersAnalysis.json
+report/node_modules
+report/dist
