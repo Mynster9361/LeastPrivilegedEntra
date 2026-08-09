@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Links to documentation site
 - Credits on Get-LPEPrivilegedUser
+- Added `Export-LPEPermissionAnalysisReport` - renders `Get-LPEPermissionAnalysis` output into a single self-contained, offline-capable HTML report (sortable/filterable user table, per-role RelatedActivities drill-down, RemoveRoles/AddRoles/DeniedAttempts suggestions, dark mode, CSV export). The report template is built from a Vite + React + TypeScript + TanStack Table project under `report/` (see `report/README.md`); the function itself only injects data into the pre-built template and has no Node.js dependency at runtime
+- `Invoke-LPEScan` gained `-OutHtml` and `-ReportTitle` parameters to generate the HTML report automatically as part of a scan, alongside the existing `-OutFile` JSON export
+- Added a Pester test suite for `Export-LPEPermissionAnalysisReport`
+- The HTML report's user detail view now shows the audit-log evidence (Category, DisplayName, permission, count, last seen/attempted) behind every `AddRoles`/`DeniedAttempts` suggestion, expandable per role, instead of just the bare role name
+
+### Changed
+- BREAKING CHANGE: `Get-LPEPermissionAnalysis`'s `Suggestion.AddRoles` and `Suggestion.DeniedAttempts` are no longer `string[]` of role names - each entry is now an object (`RoleName` plus an `Activities` list carrying the Category/DisplayName/LeastPrivilegedMSGraph/count/timestamp evidence behind the suggestion) so the "why" is available programmatically instead of only in the `RemoveRoles`/`KeepRoles` role-name lists
 
 ## [1.0.0] - 2026-08-07
 

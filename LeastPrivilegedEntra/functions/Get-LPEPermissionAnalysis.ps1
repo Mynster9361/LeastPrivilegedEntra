@@ -24,10 +24,14 @@
             - KeepRoles: held roles that are either justified by observed activity or can't be evaluated at all.
             - AddRoles: roles implied by the user's activity that they do not currently hold - typically because a
               broader role (e.g. Global Administrator) is covering for a narrower one (e.g. User Administrator)
-              that would have sufficed.
+              that would have sufficed. Each entry is a RoleName plus the Activities (Category, DisplayName,
+              LeastPrivilegedMSGraph, ActivityCount, LastActivityTime) that prove the suggestion - the same evidence
+              a reviewer would otherwise have to go dig out of the audit log by hand.
             - DeniedAttempts: roles the user does not hold and never successfully exercised via another role, but
-              repeatedly attempted (and were denied) actions that map to. Only populated when ActivityLog was
-              collected with Get-LPELogActivityData -IncludeFailures; otherwise always empty.
+              repeatedly attempted (and were denied) actions that map to. Each entry is a RoleName plus the
+              Activities (Category, DisplayName, LeastPrivilegedMSGraph, FailureCount, LastAttemptTime) that were
+              denied. Only populated when ActivityLog was collected with Get-LPELogActivityData -IncludeFailures;
+              otherwise always empty.
 
         Requires Get-LPEActivityData to be loaded in the session.
     .PARAMETER PrivilegedUser
@@ -53,6 +57,12 @@
             Where-Object DisplayName -eq 'Jane Doe').Roles.RelatedActivities
 
         Shows the full activity-by-activity breakdown behind every role a specific user holds.
+    .EXAMPLE
+        (Get-LPEPermissionAnalysis -PrivilegedUser $privilegedUsers -ActivityLog $activityLog |
+            Where-Object DisplayName -eq 'Jane Doe').Suggestion.AddRoles |
+            ForEach-Object { $_.RoleName; $_.Activities | Format-Table Category, DisplayName, ActivityCount, LastActivityTime }
+
+        Shows which role(s) are suggested to add for a specific user, and the exact activity evidence behind each suggestion.
     .OUTPUTS
         PSCustomObject
 	.LINK
@@ -104,32 +114,44 @@
 		foreach ($user in $PrivilegedUser) {
 			$userLog = $activityLogByUser[$user.Id]
 
-			$suggestedRoles = @()
+			# Maps RoleName -> the list of logged activities that prove the suggestion, so AddRoles/DeniedAttempts
+			# below can carry the evidence behind them instead of just a bare role name.
+			$addRoleEvidence = [ordered]@{}
+			$deniedRoleEvidence = [ordered]@{}
 			if ($userLog) {
-				$suggestedRoles = @(
-					foreach ($loggedActivity in $userLog.Activities) {
-						# ActivityCount 0 rows (denied-only, only present with -IncludeFailures) are not evidence the
-						# user successfully exercised the mapped role - those feed DeniedAttempts below instead.
-						if ($loggedActivity.ActivityCount -le 0) { continue }
-						$activityKey = '{0}|{1}' -f $loggedActivity.Category, $loggedActivity.DisplayName
-						$mappedActivity = $activityRoleMap[$activityKey]
-						if ($mappedActivity -and $mappedActivity.LeastPrivilegeRBAC) { $mappedActivity.LeastPrivilegeRBAC }
-					}
-				) | Sort-Object -Unique
-			}
+				foreach ($loggedActivity in $userLog.Activities) {
+					$activityKey = '{0}|{1}' -f $loggedActivity.Category, $loggedActivity.DisplayName
+					$mappedActivity = $activityRoleMap[$activityKey]
+					if (-not $mappedActivity -or -not $mappedActivity.LeastPrivilegeRBAC) { continue }
+					$roleName = $mappedActivity.LeastPrivilegeRBAC
 
-			# Activities with ActivityCount 0 only appear when ActivityLog was collected with -IncludeFailures, and
-			# mean every attempt at that activity was denied - a candidate for a role the user needs but lacks.
-			$deniedRoles = @()
-			if ($userLog) {
-				$deniedRoles = @(
-					foreach ($loggedActivity in $userLog.Activities) {
-						if ($loggedActivity.ActivityCount -gt 0 -or $loggedActivity.FailureCount -le 0) { continue }
-						$activityKey = '{0}|{1}' -f $loggedActivity.Category, $loggedActivity.DisplayName
-						$mappedActivity = $activityRoleMap[$activityKey]
-						if ($mappedActivity -and $mappedActivity.LeastPrivilegeRBAC) { $mappedActivity.LeastPrivilegeRBAC }
+					if ($loggedActivity.ActivityCount -gt 0) {
+						# A successful occurrence - evidence the user actually needs this role.
+						if (-not $addRoleEvidence.Contains($roleName)) {
+							$addRoleEvidence[$roleName] = [System.Collections.Generic.List[object]]::new()
+						}
+						$addRoleEvidence[$roleName].Add([PSCustomObject]@{
+							Category               = $loggedActivity.Category
+							DisplayName            = $loggedActivity.DisplayName
+							LeastPrivilegedMSGraph = $mappedActivity.LeastPrivilegedMSGraph
+							ActivityCount          = $loggedActivity.ActivityCount
+							LastActivityTime       = $loggedActivity.LastActivityTime
+						})
+					} elseif ($loggedActivity.FailureCount -gt 0) {
+						# ActivityCount 0 rows only appear when ActivityLog was collected with -IncludeFailures, and
+						# mean every attempt at that activity was denied - a candidate for a role the user needs but lacks.
+						if (-not $deniedRoleEvidence.Contains($roleName)) {
+							$deniedRoleEvidence[$roleName] = [System.Collections.Generic.List[object]]::new()
+						}
+						$deniedRoleEvidence[$roleName].Add([PSCustomObject]@{
+							Category               = $loggedActivity.Category
+							DisplayName            = $loggedActivity.DisplayName
+							LeastPrivilegedMSGraph = $mappedActivity.LeastPrivilegedMSGraph
+							FailureCount           = $loggedActivity.FailureCount
+							LastAttemptTime        = $loggedActivity.LastAttemptTime
+						})
 					}
-				) | Sort-Object -Unique
+				}
 			}
 
 			$roleResults = @(
@@ -210,8 +232,24 @@
 				Suggestion        = [PSCustomObject]@{
 					RemoveRoles    = @($roleResults | Where-Object Status -EQ 'NotUsedInWindow' | Select-Object -ExpandProperty RoleName)
 					KeepRoles      = @($roleResults | Where-Object { $_.Status -in 'Used', 'NoMappedActivity' } | Select-Object -ExpandProperty RoleName)
-					AddRoles       = @($suggestedRoles | Where-Object { $_ -notin $heldRoleNames })
-					DeniedAttempts = @($deniedRoles | Where-Object { $_ -notin $heldRoleNames -and $_ -notin $suggestedRoles })
+					AddRoles       = @(
+						foreach ($roleName in $addRoleEvidence.Keys) {
+							if ($roleName -in $heldRoleNames) { continue }
+							[PSCustomObject]@{
+								RoleName   = $roleName
+								Activities = @($addRoleEvidence[$roleName])
+							}
+						}
+					)
+					DeniedAttempts = @(
+						foreach ($roleName in $deniedRoleEvidence.Keys) {
+							if ($roleName -in $heldRoleNames -or $addRoleEvidence.Contains($roleName)) { continue }
+							[PSCustomObject]@{
+								RoleName   = $roleName
+								Activities = @($deniedRoleEvidence[$roleName])
+							}
+						}
+					)
 				}
 			}
 		}

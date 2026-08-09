@@ -24,6 +24,7 @@ https://mynster-it.dk/docs/modules/leastprivilegedentra
 | `Get-LPELogActivityData`    | Queries the AuditLogs table in a Log Analytics workspace for the relevant activity a set of users performed.                                                                               |
 | `Get-LPEPermissionAnalysis` | Couples privileged users with their logged activity to determine, per role, whether it's actually being used.                                                                              |
 | `Get-LPEActivityData`       | Reference lookup: given an audit log Category/Activity, returns the least-privileged Entra RBAC role and Microsoft Graph permission that covers it.                                        |
+| `Export-LPEPermissionAnalysisReport` | Renders `Get-LPEPermissionAnalysis` output into a single self-contained, offline-capable HTML report with a sortable/filterable table, per-role drill-down, dark mode, and CSV export. |
 
 Every command ships with full comment-based help - run `Get-Help <command> -Full` for parameters and examples.
 
@@ -69,7 +70,7 @@ $appId = "appId"
 $secret = "secret" | ConvertTo-SecureString -AsPlainText -Force
 $workspaceId = "workspaceId"
 
-Invoke-LPEScan -TenantId $tenantId -ClientId $appId -ClientSecret $secret -WorkspaceId $workspaceId -OutFile ".\PrivilegedUsersAnalysis.json"
+Invoke-LPEScan -TenantId $tenantId -ClientId $appId -ClientSecret $secret -WorkspaceId $workspaceId -OutFile ".\PrivilegedUsersAnalysis.json" -OutHtml ".\PrivilegedUsersAnalysisReport.html"
 ```
 
 >NOTE: How you authenticate is up to you as long as you authenticate with the EntraAuth module below is with certificate instead 
@@ -81,15 +82,21 @@ Invoke-LPEScan -TenantId $tenantId -ClientId $appId -ClientSecret $secret -Works
 
 # Connect-EntraService -ClientID $clientID -TenantID $tenantID -Certificate $cert -Service Graph, LogAnalytics
 
-Invoke-LPEScan -SkipConnect -WorkspaceId $workspaceId -OutFile ".\PrivilegedUsersAnalysis.json"
+Invoke-LPEScan -SkipConnect -WorkspaceId $workspaceId -OutFile ".\PrivilegedUsersAnalysis.json" -OutHtml ".\PrivilegedUsersAnalysisReport.html"
 
 ```
 
-`Invoke-LPEScan` connects, enumerates privileged users, pulls their audit log activity, runs the analysis, and both returns the result objects and (via `-OutFile`) writes them to a JSON file. It also shows live progress while it runs. See `Get-Help Invoke-LPEScan -Full` for all parameters, including `-Days`, `-IncludeFailures`, and `-SkipConnect` (to reuse an existing `Connect-EntraService` session).
+`Invoke-LPEScan` connects, enumerates privileged users, pulls their audit log activity, runs the analysis, and returns the result objects - and, if you pass them, writes the results to a JSON file via `-OutFile` and/or a self-contained HTML report via `-OutHtml` (optionally titled with `-ReportTitle`). It also shows live progress while it runs. See `Get-Help Invoke-LPEScan -Full` for all parameters, including `-Days`, `-IncludeFailures`, and `-SkipConnect` (to reuse an existing `Connect-EntraService` session).
 
-After the scan is run, `PrivilegedUsersAnalysis.json` will contain all the data related to which users hold which roles, when they last used them, and whether they need to keep the role based on their observed activity.
+After the scan is run, `PrivilegedUsersAnalysis.json` will contain all the data related to which users hold which roles, when they last used them, and whether they need to keep the role based on their observed activity, and `PrivilegedUsersAnalysisReport.html` is a single offline-capable file with a sortable/filterable user table, per-role usage detail, and a dark mode toggle - no server or internet connection needed to view it.
 
 ![Sample Output](docs/img/sample_output.png)
+
+Prefer to generate the report separately (e.g. from previously-saved JSON)? `Export-LPEPermissionAnalysisReport` is also usable on its own:
+
+```powershell
+Get-Content .\PrivilegedUsersAnalysis.json -Raw | ConvertFrom-Json | Export-LPEPermissionAnalysisReport -OutputPath ".\PrivilegedUsersAnalysisReport.html"
+```
 
 ## Contributing / Running Tests
 

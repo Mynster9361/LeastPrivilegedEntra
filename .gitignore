@@ -2,5 +2,6 @@
 TestResults
 JustForTesting.ps1
 PrivilegedUsersAnalysis.json
+PrivilegedUsersAnalysisReport.html
 report/node_modules
 report/dist

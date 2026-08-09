@@ -16,7 +16,7 @@ function Invoke-LPEScan {
         4. Get-LPEPermissionAnalysis couples the two to produce, per user, per-role usage evidence and a right-sizing
            suggestion (roles to remove/keep/add).
 
-        Optionally writes the analysis to a JSON file via -OutFile.
+        Optionally writes the analysis to a JSON file via -OutFile and/or an HTML report via -OutHtml.
     .PARAMETER TenantId
         The Entra ID tenant ID (GUID) to connect to.
     .PARAMETER ClientId
@@ -31,6 +31,12 @@ function Invoke-LPEScan {
         By default only activities that succeeded are returned. Pass this switch to also include failed attempts.
     .PARAMETER OutFile
         Optional path to write the analysis results to as JSON.
+    .PARAMETER OutHtml
+        Optional path to write the analysis results to as a self-contained HTML report (see
+        Export-LPEPermissionAnalysisReport).
+    .PARAMETER ReportTitle
+        Title shown in the HTML report header and browser tab, when -OutHtml is used. Defaults to "Least Privileged
+        Entra Report".
     .PARAMETER SkipConnect
         Skip calling Connect-EntraService, and reuse an already-established EntraAuth connection
         (Graph and LogAnalytics services must already be connected).
@@ -43,6 +49,10 @@ function Invoke-LPEScan {
         Invoke-LPEScan -TenantId $tenantId -ClientId $appId -ClientSecret $secret -WorkspaceId $workspaceId -Days 30 -OutFile ".\PrivilegedUsersAnalysis.json"
 
         Runs the scan over a 30-day window and writes the results to a JSON file.
+    .EXAMPLE
+        Invoke-LPEScan -TenantId $tenantId -ClientId $appId -ClientSecret $secret -WorkspaceId $workspaceId -OutHtml ".\PrivilegedUsersAnalysisReport.html" -ReportTitle "Contoso - Privileged Role Review"
+
+        Runs the scan and writes a self-contained HTML report alongside returning the analysis.
     .OUTPUTS
         PSCustomObject
 	.LINK
@@ -76,6 +86,12 @@ function Invoke-LPEScan {
 
 		[Parameter(Mandatory = $false)]
 		[string]$OutFile,
+
+		[Parameter(Mandatory = $false)]
+		[string]$OutHtml,
+
+		[Parameter(Mandatory = $false)]
+		[string]$ReportTitle = "Least Privileged Entra Report",
 
 		[Parameter(Mandatory = $true, ParameterSetName = 'SkipConnect')]
 		[switch]$SkipConnect
@@ -113,9 +129,15 @@ function Invoke-LPEScan {
 	$analysis = Get-LPEPermissionAnalysis -PrivilegedUser $privilegedUsers -ActivityLog $activityLog
 
 	if ($OutFile) {
-		Write-Progress -Activity $activity -Status "Writing results to $OutFile" -PercentComplete 95
+		Write-Progress -Activity $activity -Status "Writing results to $OutFile" -PercentComplete 90
 		Write-Verbose -Message "Writing analysis to $OutFile."
 		$analysis | ConvertTo-Json -Depth 10 | Out-File -FilePath $OutFile
+	}
+
+	if ($OutHtml) {
+		Write-Progress -Activity $activity -Status "Writing HTML report to $OutHtml" -PercentComplete 95
+		Write-Verbose -Message "Writing HTML report to $OutHtml."
+		$analysis | Export-LPEPermissionAnalysisReport -OutputPath $OutHtml -ReportTitle $ReportTitle | Out-Null
 	}
 
 	Write-Progress -Activity $activity -Completed
